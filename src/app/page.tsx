@@ -1,103 +1,180 @@
-import Image from "next/image";
+"use client";
+
+import Container from "@mui/material/Container";
+import Stack from "@mui/material/Stack";
+import CompanyTitleCard from "../components/CompanyTitleCard";
+import RevenueDetailTableCard from "../components/RevenueDetailTableCard";
+import SearchBar, { StockOption } from "@/components/SearchBar";
+import React, { useEffect, useState, useMemo } from "react";
+import {
+  fetchTaiwanStockInfo,
+  fetchTaiwanStockMonthRevenue,
+  TaiwanStockInfoItem,
+  TaiwanStockMonthRevenueItem,
+} from "@/api/finance";
+import dayjs from "dayjs";
+import RevenueChartEchartsCard from "@/components/RevenueChartEchartsCard";
+import { YearRangeType } from "@/types/finance";
+import { getDisplayRange, filterDisplayData, calculateGrowthData } from "@/utils/dataProcessor";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [stockList, setStockList] = useState<TaiwanStockInfoItem[]>([]);
+  const [selectedStock, setSelectedStock] = useState<StockOption | null>({
+    label: "三商壽",
+    value: "2867",
+    group: "查询个股",
+    industry_category: "金融保險",
+    stock_id: "2867",
+    stock_name: "三商壽",
+    type: "twse",
+    date: "2025-07-09",
+  });
+  const [revenueData, setRevenueData] = useState<TaiwanStockMonthRevenueItem[]>(
+    []
+  );
+  const [loading, setLoading] = useState(false);
+  const [yearRange, setYearRange] = useState<{ type: YearRangeType, startYear?: number, endYear?: number }>({
+    type: YearRangeType.FiveYear
+  });
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+  // 处理显示数据
+  const processedData = useMemo(() => {
+    if (!revenueData.length) return { displayData: [], growthData: [] };
+    
+    const { startYear, endYear } = getDisplayRange(
+      yearRange.type,
+      yearRange.startYear,
+      yearRange.endYear
+    );
+    
+    const { displayData, fullDataForGrowth } = filterDisplayData(revenueData, startYear, endYear);
+    const growthData = calculateGrowthData(displayData, fullDataForGrowth);
+    
+    return { displayData, growthData };
+  }, [revenueData, yearRange]);
+
+  // 获取股票列表数据
+  const fetchStockList = async () => {
+    try {
+      // 先尝试从 localStorage 读取
+      const cached = localStorage.getItem("stockList");
+      if (cached) {
+        setStockList(JSON.parse(cached));
+        return;
+      }
+
+      // 否则请求接口
+      const res = await fetchTaiwanStockInfo();
+      setStockList(res.data);
+      localStorage.setItem("stockList", JSON.stringify(res.data));
+    } catch (error) {
+      console.error("获取股票列表失败:", error);
+    }
+  };
+
+  // 根据年份区间计算日期范围
+  const calculateDateRange = (range: { type: YearRangeType, startYear?: number, endYear?: number }) => {
+    const endDate = dayjs().format("YYYY-MM-DD");
+    let startDate: string;
+
+    switch (range.type) {
+      case YearRangeType.ThreeYear:
+        startDate = dayjs().subtract(4, "year").format("YYYY-MM-DD"); // 多查一年
+        break;
+      case YearRangeType.FiveYear:
+        startDate = dayjs().subtract(6, "year").format("YYYY-MM-DD"); // 多查一年
+        break;
+      case YearRangeType.EightYear:
+        startDate = dayjs().subtract(9, "year").format("YYYY-MM-DD"); // 多查一年
+        break;
+      case YearRangeType.Custom:
+        if (range.startYear && range.endYear) {
+          startDate = `${range.startYear - 1}-01-01`; // 多查一年
+          const customEndDate = `${range.endYear}-12-31`;
+          return { startDate, endDate: customEndDate };
+        }
+        // 如果自定义参数不完整，默认使用5年
+        startDate = dayjs().subtract(6, "year").format("YYYY-MM-DD");
+        break;
+      default:
+        startDate = dayjs().subtract(6, "year").format("YYYY-MM-DD");
+    }
+
+    return { startDate, endDate };
+  };
+
+  // 获取营收数据
+  const fetchRevenueData = async (stockId: string, range?: { type: YearRangeType, startYear?: number, endYear?: number }) => {
+    try {
+      setLoading(true);
+
+      const currentRange = range || yearRange;
+      const { startDate, endDate } = calculateDateRange(currentRange);
+
+      const res = await fetchTaiwanStockMonthRevenue(
+        stockId,
+        startDate,
+        endDate
+      );
+      setRevenueData(res.data);
+    } catch (error) {
+      console.error("获取营收数据失败:", error);
+      setRevenueData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 处理年份区间变化
+  const handleRangeChange = (range: { type: YearRangeType, startYear?: number, endYear?: number }) => {
+    setYearRange(range);
+    if (selectedStock?.stock_id) {
+      fetchRevenueData(selectedStock.stock_id, range);
+    }
+  };
+
+  // 初始化：获取股票列表
+  useEffect(() => {
+    fetchStockList();
+  }, []);
+
+  // 当选中股票变化时，获取对应的营收数据
+  useEffect(() => {
+    if (selectedStock?.stock_id) {
+      fetchRevenueData(selectedStock.stock_id);
+    }
+  }, [selectedStock?.stock_id]);
+
+  return (
+    <>
+      <SearchBar stockList={stockList} onChange={setSelectedStock} />
+      <Container
+        maxWidth="md"
+        sx={{
+          position: "relative",
+          width: "100vw",
+          height: "calc(100vh - 58px)",
+          marginTop: "58px",
+        }}
+      >
+        <Stack spacing={"18px"} sx={{ paddingTop: "18px" }}>
+          <CompanyTitleCard
+            companyName={selectedStock?.stock_name || ""}
+            companyCode={selectedStock?.stock_id || ""}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
+          <RevenueChartEchartsCard 
+            revenueData={processedData.displayData}
+            growthData={processedData.growthData}
+            loading={loading} 
+            onRangeChange={handleRangeChange}
           />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
+          <RevenueDetailTableCard 
+            revenueData={processedData.displayData}
+            growthData={processedData.growthData}
+            loading={loading} 
           />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+        </Stack>
+      </Container>
+    </>
   );
 }

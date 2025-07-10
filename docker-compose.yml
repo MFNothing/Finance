@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  finance-app:
+    build: .
+    ports:
+      - "3010:3010"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_FINMIND_TOKEN=${FINMIND_TOKEN}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3010/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s 
