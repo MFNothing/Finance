@@ -49,29 +49,40 @@ const commonHeaders = {
   Authorization: `Bearer ${token}`,
 }
 
+// 判断是否在服务器端
+const isServer = typeof window === 'undefined';
+
 export const fetchTaiwanStockInfo = () => {
+  // 服务器端直接访问 FinMind API，客户端使用代理
+  const url = isServer ? FINMIND_API_URL : '';
+  const params = {
+    dataset: Dataset.TaiwanStockInfo,
+  };
+  
   return get<TaiwanStockInfoResponse, FinMindQueryParams>(
-    FINMIND_API_URL,
+    url,
+    params,
     {
-      dataset: Dataset.TaiwanStockInfo,
-    },
-    {
-      headers: commonHeaders,
+      headers: isServer ? commonHeaders : undefined,
     }
   );
 };
 
 export const fetchTaiwanStockMonthRevenue = (stockId: string, startDate: string, endDate: string) => {
+  // 服务器端直接访问 FinMind API，客户端使用代理
+  const url = isServer ? FINMIND_API_URL : '';
+  const params = {
+    dataset: Dataset.TaiwanStockMonthRevenue,
+    data_id: stockId,
+    start_date: startDate,
+    end_date: endDate,
+  };
+  
   return get<TaiwanStockMonthRevenueResponse, FinMindQueryParams>(
-    FINMIND_API_URL,
+    url,
+    params,
     {
-      dataset: Dataset.TaiwanStockMonthRevenue,
-      data_id: stockId,
-      start_date: startDate,
-      end_date: endDate,
-    },
-    {
-      headers: commonHeaders,
+      headers: isServer ? commonHeaders : undefined,
     }
   );
 }

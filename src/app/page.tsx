@@ -39,7 +39,7 @@ export default function Home() {
 
   // 处理显示数据
   const processedData = useMemo(() => {
-    if (!revenueData.length) return { displayData: [], growthData: [] };
+    if (!revenueData?.length) return { displayData: [], growthData: [] };
     
     const { startYear, endYear } = getDisplayRange(
       yearRange.type,
